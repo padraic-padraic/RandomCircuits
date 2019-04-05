@@ -216,146 +216,50 @@ void clifford_recompilation(std::vector<gate_ptr>& gate_sequence)
   }
 }
 
-std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema)
+layer_t get_cz_layer(unsigned n_qubits, unsigned layer_index, std::vector<std::vector<cz_t>>& cz_schema, std::vector<gate_ptr>& gates)
 {
-  unsigned seed = std::time(nullptr);
-  #ifdef _OPENMP
-  #pragma parallel
+  layer_t layer(n_qubits, GateEnum::I);
+  for(auto cz : cz_schema[layer_index])
   {
-    init_rng(seed, omp_get_thread_num());
+    layer[cz.first] = GateEnum::CZ;
+    layer[cz.second] = GateEnum::CZ;
+    gates.push_back(std::make_shared<Gate>(cz.first, cz.second));
   }
-  #else
-  init_rng(seed, 0);
-  #endif
-  std::vector<gate_ptr> flattened_circuit;
-  for(unsigned i=0; i<n_qubits; i++)
-  {
-    flattened_circuit.push_back(std::make_shared<Gate>(i, GateEnum::H));
-  }
-  layer_t last_layer(n_qubits, GateEnum::I);
-  for(auto cz : cz_schema[0])
-  {
-    last_layer[cz.first] = GateEnum::CZ;
-    last_layer[cz.second] = GateEnum::CZ;
-    flattened_circuit.push_back(std::make_shared<Gate>(cz.first, cz.second));
-  }
-  for(unsigned i=0; i<n_qubits; i++)
-  {
-    if(last_layer[i] == GateEnum::CZ)
-    {
-      continue;
-    }
-    last_layer[i] = GateEnum::Rot;
-    flattened_circuit.push_back(std::make_shared<Rotation>(i));
-  }
-  for(unsigned i=1; i<n_layers; i++)
-  {
-    layer_t this_layer(n_qubits, GateEnum::I);
-    auto czs = cz_schema[n_layers%cz_schema.size()];
-    for(auto cz: czs)
-    {
-      this_layer[cz.first] = GateEnum::CZ;
-      this_layer[cz.second] = GateEnum::CZ;
-      flattened_circuit.push_back(std::make_shared<Gate>(cz.first, cz.second));
-    }
-    for(unsigned i=0; i<n_qubits; i++)
-    {
-      if(this_layer[i] == GateEnum::CZ)
-      {
-        continue;
-      }
-      if(last_layer[i] == GateEnum::SX || last_layer[i] == GateEnum::SY)
-      {
-        this_layer[i] = GateEnum::Rot;
-        flattened_circuit.push_back(std::make_shared<Rotation>(i));
-      }
-      else if(last_layer[i] == GateEnum::CZ)
-      {
-        GateEnum gtype;
-        if(random_bit())
-        {
-          gtype = GateEnum::SX;
-        }
-        else
-        {
-          gtype = GateEnum::SY;
-        }
-        this_layer[i] = gtype;
-        flattened_circuit.push_back(std::make_shared<Gate>(i, gtype));
-      }
-    }
-    last_layer = this_layer;
-  }
-  for(unsigned i=0; i<n_qubits; i++)
-  {
-    flattened_circuit.push_back(std::make_shared<Gate>(i, GateEnum::H));
-  }
-  return flattened_circuit;
+  return layer;
 }
 
-std::vector<gate_ptr> old_google_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema)
+layer_t get_cz_layer(unsigned n_qubits, double cz_fraction, std::vector<gate_ptr>& gates)
 {
-  unsigned seed = std::time(nullptr);
-  std::vector<bool> has_a_t(n_qubits, false);
-  #ifdef _OPENMP
-  #pragma parallel
+  layer_t layer(n_qubits, GateEnum::I);
+  unsigned cz_pairs = std::rint(0.5*cz_fraction*n_qubits);
+  unsigned pairs = 0;
+  while(pairs < cz_pairs)
   {
-    init_rng(seed, omp_get_thread_num());
-  }
-  #else
-  init_rng(seed, 0);
-  #endif
-  std::vector<gate_ptr> flattened_circuit;
-  for(unsigned i=0; i<n_qubits; i++)
-  {
-    flattened_circuit.push_back(std::make_shared<Gate>(i, GateEnum::H));
-  }
-  layer_t last_layer(n_qubits, GateEnum::I);
-  for(auto cz : cz_schema[0])
-  {
-    if(cz.first > n_qubits || cz.second > n_qubits)
+    unsigned control = random_uint() % n_qubits;
+    unsigned target = random_uint() % n_qubits;
+    if(layer[control] == GateEnum::I && layer[target] == GateEnum::I)
     {
-      throw std::runtime_error("CZ Schema specified a qubit larger than this circuit. Did you use the correct schema?\n");
+      pairs++;
     }
-    last_layer[cz.first] = GateEnum::CZ;
-    last_layer[cz.second] = GateEnum::CZ;
-    flattened_circuit.push_back(std::make_shared<Gate>(cz.first, cz.second));
   }
+  return layer;
+}
+
+void add_single_qubit_gates(unsigned n_qubits, layer_t& last_layer, layer_t& this_layer, std::vector<bool>& has_a_t, std::vector<gate_ptr>& gates, bool old_style)
+{
   for(unsigned i=0; i<n_qubits; i++)
   {
-    if(last_layer[i] == GateEnum::CZ)
+    if(this_layer[i] == GateEnum::CZ)
     {
       continue;
     }
-    last_layer[i] = GateEnum::Rot;
-    has_a_t[i] = true;
-    flattened_circuit.push_back(std::make_shared<Rotation>(i));
-  }
-  for(unsigned i=1; i<n_layers; i++)
-  {
-    layer_t this_layer(n_qubits, GateEnum::I);
-    auto czs = cz_schema[n_layers%cz_schema.size()];
-    for(auto cz: czs)
+    if(old_style)
     {
-      if(cz.first > n_qubits || cz.second > n_qubits)
-      {
-        throw std::runtime_error("CZ Schema specified a qubit larger than this circuit. Did you use the correct schema?\n");
-      }
-      this_layer[cz.first] = GateEnum::CZ;
-      this_layer[cz.second] = GateEnum::CZ;
-      flattened_circuit.push_back(std::make_shared<Gate>(cz.first, cz.second));
-    }
-    for(unsigned i=0; i<n_qubits; i++)
-    {
-      if(this_layer[i] == GateEnum::CZ)
-      {
-        continue;
-      }
       if(!has_a_t[i])
       {
         has_a_t[i] = true;
         this_layer[i] = GateEnum::Rot;
-        flattened_circuit.push_back(std::make_shared<Rotation>(i));
+        gates.push_back(std::make_shared<Rotation>(i));
       }
       else if(last_layer[i] == GateEnum::CZ)
       {
@@ -376,14 +280,113 @@ std::vector<gate_ptr> old_google_circuit(unsigned n_qubits, unsigned n_layers, s
         this_layer[i] = gtype;
         if(gtype == GateEnum::Rot)
         {
-          flattened_circuit.push_back(std::make_shared<Rotation>(i));
+          gates.push_back(std::make_shared<Rotation>(i));
         }
         else
         {
-          flattened_circuit.push_back(std::make_shared<Gate>(i, gtype));
+          gates.push_back(std::make_shared<Gate>(i, gtype));
         }
       }
     }
+    else
+    {
+      if(last_layer[i] == GateEnum::SX || last_layer[i] == GateEnum::SY)
+      {
+        this_layer[i] = GateEnum::Rot;
+        gates.push_back(std::make_shared<Rotation>(i));
+      }
+      else if(last_layer[i] == GateEnum::CZ)
+      {
+        GateEnum gtype;
+        if(random_bit())
+        {
+          gtype = GateEnum::SX;
+        }
+        else
+        {
+          gtype = GateEnum::SY;
+        }
+        this_layer[i] = gtype;
+        gates.push_back(std::make_shared<Gate>(i, gtype));
+      }
+    }
+  }
+}
+
+std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style=false)
+{
+  unsigned seed = std::time(nullptr);
+  #ifdef _OPENMP
+  #pragma parallel
+  {
+    init_rng(seed, omp_get_thread_num());
+  }
+  #else
+  init_rng(seed, 0);
+  #endif
+  std::vector<gate_ptr> flattened_circuit;
+  std::vector<bool> has_a_t(n_qubits, false);
+  for(unsigned i=0; i<n_qubits; i++)
+  {
+    flattened_circuit.push_back(std::make_shared<Gate>(i, GateEnum::H));
+  }
+  layer_t last_layer = get_cz_layer(n_qubits, 0, cz_schema, flattened_circuit);
+  for(unsigned i=0; i<n_qubits; i++)
+  {
+    if(last_layer[i] == GateEnum::CZ)
+    {
+      continue;
+    }
+    last_layer[i] = GateEnum::Rot;
+    has_a_t[i] = true;
+    flattened_circuit.push_back(std::make_shared<Rotation>(i));
+  }
+  for(unsigned i=1; i<n_layers; i++)
+  {
+    unsigned layer_index = i%cz_schema.size();
+    layer_t this_layer = get_cz_layer(n_qubits, layer_index, cz_schema, flattened_circuit);
+    add_single_qubit_gates(n_qubits, last_layer, this_layer, has_a_t, flattened_circuit, old_style);
+    last_layer = this_layer;
+  }
+  for(unsigned i=0; i<n_qubits; i++)
+  {
+    flattened_circuit.push_back(std::make_shared<Gate>(i, GateEnum::H));
+  }
+  return flattened_circuit;
+}
+
+std::vector<gate_ptr> infd_google_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style=false)
+{
+  unsigned seed = std::time(nullptr);
+  #ifdef _OPENMP
+  #pragma parallel
+  {
+    init_rng(seed, omp_get_thread_num());
+  }
+  #else
+  init_rng(seed, 0);
+  #endif
+  std::vector<gate_ptr> flattened_circuit;
+  std::vector<bool> has_a_t(n_qubits, false);
+  for(unsigned i=0; i<n_qubits; i++)
+  {
+    flattened_circuit.push_back(std::make_shared<Gate>(i, GateEnum::H));
+  }
+  layer_t last_layer = get_cz_layer(n_qubits, cz_fraction, flattened_circuit);
+  for(unsigned i=0; i<n_qubits; i++)
+  {
+    if(last_layer[i] == GateEnum::CZ)
+    {
+      continue;
+    }
+    last_layer[i] = GateEnum::Rot;
+    has_a_t[i] = true;
+    flattened_circuit.push_back(std::make_shared<Rotation>(i));
+  }
+  for(unsigned i=1; i<n_layers; i++)
+  {
+    layer_t this_layer = get_cz_layer(n_qubits, cz_fraction, flattened_circuit);
+    add_single_qubit_gates(n_qubits, last_layer, this_layer, has_a_t, flattened_circuit, old_style);
     last_layer = this_layer;
   }
   for(unsigned i=0; i<n_qubits; i++)
