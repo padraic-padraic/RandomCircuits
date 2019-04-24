@@ -17,6 +17,12 @@
 
 enum class GateEnum {I, H, CZ, SX, SY, Rot};
 
+std::unordered_map<GateEnum,std::string> gate_strs = {
+  {GateEnum::H, "H"},
+  {GateEnum::SX, "SX"},
+  {GateEnum::SY, "SY"}
+};
+
 struct Gate;
 
 using uint_t = StabilizerSimulator::uint_t;
@@ -49,6 +55,33 @@ struct Gate
     Gate(const Gate& other) : qubit(other.qubit), target(other.target), type(other.type) {};
     virtual ~Gate() = default;
     virtual void commute_past(gate_ptr other) { return; };
+
+    operator std::string() const
+    {
+      switch(type)
+      {
+        case GateEnum::CZ:
+        {
+          std::string ctrl = std::to_string(qubit);
+          std::string trgt = std::to_string(target);
+          return "CZ["+ctrl+","+trgt+"];";
+        }
+        case GateEnum::I:
+        {
+          return "";
+        }
+        case GateEnum::Rot:
+        {
+          throw std::runtime_error("Case handled by the derived class.");
+          break;
+        }
+        default:
+        {
+          std::string gstring = gate_strs[type];
+          return gstring + "["+std::to_string(qubit)+"];";
+        }
+      }
+    };
 
     virtual std::string as_qasm()
     {
@@ -178,7 +211,36 @@ struct Rotation : public Gate
     }
   };
 
-  std::string as_qasm() override
+  std::string to_string(unsigned n_qubits)
+  {
+    if(rotation_operator.weight() == 1)
+    {
+      std::string out = "";
+      unsigned pauli = !!(rotation_operator.X & (one << qubit))*2 + !!(rotation_operator.Z & (one << qubit))*1;
+      switch (pauli)
+      {
+        case 0:
+          out += "I";
+          break;
+        case 1:
+          out += "Z";
+          break;
+        case 2:
+          out += "X";
+          break;
+        case 3:
+          out += "Y";
+          break;
+      }
+      out += "["+std::to_string(qubit) + "@" + std::to_string(rotation_angle) + "];";
+      return out;
+    }
+    std::string out = rotation_operator.to_string(n_qubits);
+    out += "@" + std::to_string(rotation_angle) + ";";
+    return out;
+  };
+
+  std::string as_qasm() override //Only implemented for uncompiled circuits
   {
     return "u1(" + std::to_string(rotation_angle) + ") q0[" + std::to_string(qubit) + "];\n";
   }
