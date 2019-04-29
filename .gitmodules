@@ -1,0 +1,3 @@
+[submodule "ps_stabilizer"]
+	path = ps_stabilizer
+	url = git@github.com:padraic-padraic/StabilizerSim
