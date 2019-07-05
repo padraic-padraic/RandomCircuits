@@ -34,6 +34,8 @@ using layer_t = std::vector<GateEnum>;
 using cz_t = std::pair<unsigned, unsigned>;
 using gate_ptr = std::shared_ptr<Gate>;
 
+layer_t EMPTY = {};
+
 pauli_t IDENTITY;
 
 static uint_t zer = 0ULL;
@@ -290,18 +292,28 @@ layer_t get_cz_layer(unsigned n_qubits, unsigned layer_index, std::vector<std::v
   return layer;
 }
 
-layer_t get_cz_layer(unsigned n_qubits, double cz_fraction, std::vector<gate_ptr>& gates)
+layer_t get_cz_layer(unsigned n_qubits, double cz_fraction, std::vector<gate_ptr>& gates, layer_t& last_layer=EMPTY)
 {
   layer_t layer(n_qubits, GateEnum::I);
   unsigned cz_pairs = std::rint(0.5*cz_fraction*n_qubits);
   unsigned pairs = 0;
   while(pairs < cz_pairs)
   {
-    unsigned control = random_uint() % n_qubits;
-    unsigned target = random_uint() % n_qubits;
+    unsigned control = StabilizerSimulator::random_uint() % n_qubits;
+    unsigned target = StabilizerSimulator::random_uint() % n_qubits;
+    if(last_layer.size()>0)
+    {      
+      if (last_layer[control]== GateEnum::CZ || last_layer[target] == GateEnum::CZ)
+        {
+          continue;
+        }
+    }
     if(layer[control] == GateEnum::I && layer[target] == GateEnum::I)
     {
+      layer[control] = GateEnum::CZ;
+      layer[target] = GateEnum::CZ;
       pairs++;
+      gates.push_back(std::make_shared<Gate>(control, target));
     }
   }
   return layer;
@@ -326,7 +338,7 @@ void add_single_qubit_gates(unsigned n_qubits, layer_t& last_layer, layer_t& thi
       else if(last_layer[i] == GateEnum::CZ)
       {
         GateEnum gtype;
-        double r = random_double();
+        double r = StabilizerSimulator::random_double();
         if(r<1./3.)
         {
           gtype = GateEnum::SX;
@@ -360,7 +372,7 @@ void add_single_qubit_gates(unsigned n_qubits, layer_t& last_layer, layer_t& thi
       else if(last_layer[i] == GateEnum::CZ)
       {
         GateEnum gtype;
-        if(random_bit())
+        if(StabilizerSimulator::random_bit())
         {
           gtype = GateEnum::SX;
         }
@@ -378,14 +390,7 @@ void add_single_qubit_gates(unsigned n_qubits, layer_t& last_layer, layer_t& thi
 std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style=false)
 {
   unsigned seed = std::time(nullptr);
-  #ifdef _OPENMP
-  #pragma parallel
-  {
-    init_rng(seed, omp_get_thread_num());
-  }
-  #else
-  init_rng(seed, 0);
-  #endif
+  StabilizerSimulator::init_rng(seed, 0);
   std::vector<gate_ptr> flattened_circuit;
   std::vector<bool> has_a_t(n_qubits, false);
   for(unsigned i=0; i<n_qubits; i++)
@@ -399,9 +404,12 @@ std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::
     {
       continue;
     }
-    last_layer[i] = GateEnum::Rot;
-    has_a_t[i] = true;
-    flattened_circuit.push_back(std::make_shared<Rotation>(i));
+    if(old_style)
+    {
+      last_layer[i] = GateEnum::Rot;
+      has_a_t[i] = true;
+      flattened_circuit.push_back(std::make_shared<Rotation>(i));
+    }
   }
   for(unsigned i=1; i<n_layers; i++)
   {
@@ -420,14 +428,7 @@ std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::
 std::vector<gate_ptr> infd_google_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style=false)
 {
   unsigned seed = std::time(nullptr);
-  #ifdef _OPENMP
-  #pragma parallel
-  {
-    init_rng(seed, omp_get_thread_num());
-  }
-  #else
-  init_rng(seed, 0);
-  #endif
+  StabilizerSimulator::init_rng(seed, 0);
   std::vector<gate_ptr> flattened_circuit;
   std::vector<bool> has_a_t(n_qubits, false);
   for(unsigned i=0; i<n_qubits; i++)
@@ -441,13 +442,16 @@ std::vector<gate_ptr> infd_google_circuit(unsigned n_qubits, unsigned n_layers, 
     {
       continue;
     }
-    last_layer[i] = GateEnum::Rot;
-    has_a_t[i] = true;
-    flattened_circuit.push_back(std::make_shared<Rotation>(i));
+    if(old_style)
+    {
+      last_layer[i] = GateEnum::Rot;
+      has_a_t[i] = true;
+      flattened_circuit.push_back(std::make_shared<Rotation>(i));
+    }
   }
   for(unsigned i=1; i<n_layers; i++)
   {
-    layer_t this_layer = get_cz_layer(n_qubits, cz_fraction, flattened_circuit);
+    layer_t this_layer = get_cz_layer(n_qubits, cz_fraction, flattened_circuit, last_layer);
     add_single_qubit_gates(n_qubits, last_layer, this_layer, has_a_t, flattened_circuit, old_style);
     last_layer = this_layer;
   }
