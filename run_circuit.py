@@ -51,6 +51,7 @@ if __name__ == '__main__':
     creg = ClassicalRegister(n_qubits)
     qreg = QuantumRegister(n_qubits)
     qcirc = QuantumCircuit(qreg, creg)
+    t_count = 0
     for gate in circ:
         qblock_start = gate.find('[')
         qblock_end = gate.find(']')
@@ -71,6 +72,7 @@ if __name__ == '__main__':
         elif gate.startswith('Z'):
             qubit = int(gate[qblock_start+1:qblock_end].split('@')[0])
             qcirc.t(qreg[qubit])
+            t_count += 1
         else:
             control, target = [
                 int(q) for q in gate[qblock_start+1:qblock_end].split(',')]
@@ -96,6 +98,7 @@ if __name__ == '__main__':
     try:
         result = job.result(timeout=timeout)
         output = result.to_dict()
+        output['t_count'] = t_count
     except TimeoutError:
         print("Timeout error.")
         output = {
