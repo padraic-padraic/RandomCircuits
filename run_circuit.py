@@ -17,6 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("--cz_fraction", type=float, default=0.25)
     parser.add_argument("--save_circ", action="store_true")
     parser.add_argument("--timeout")
+    parser.add_argument("--precision", default=0.05)
     args = parser.parse_args()
     dims = [int(q) for q in args.schema.split('x')]
     dimension = len(dims)
@@ -87,11 +88,12 @@ if __name__ == '__main__':
                                      seconds=seconds).total_seconds()
     else:
         timeout = 18000
-    qobj = assemble(qcirc, backend=QasmSimulator(), shots=5000)
+    qobj = assemble(qcirc, backend=QasmSimulator(), shots=10000)
     job = QasmSimulator().run(qobj, backend_options={
             'method': args.backend,
             'extended_stabilizer_measure_sampling': True,
-            'extended_stabilizer_mixing_time': 3000
+            'extended_stabilizer_mixing_time': 3000,
+            'extended_stabilizer_approximation_error': args.precision
         })
     ostr = '{}-{}-{}.json'.format(args.schema,
                                   args.depth,
