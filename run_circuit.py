@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("--cz_fraction", type=float, default=0.25)
     parser.add_argument("--save_circ", action="store_true")
     parser.add_argument("--timeout")
-    parser.add_argument("--precision", default=0.05)
+    parser.add_argument("--precision", default=0.1)
     args = parser.parse_args()
     dims = [int(q) for q in args.schema.split('x')]
     dimension = len(dims)
@@ -42,11 +42,12 @@ if __name__ == '__main__':
             args.depth,
             layers,
             old_style)
-    dstr = datetime.datetime.now().isoformat()
+    dstr = datetime.datetime.now().strtime('%j_%H-%M-%S')
     if args.save_circ:
-        with open('./circ_{}-{}-{}.txt'.format(args.schema,
-                                               args.depth,
-                                               dstr), 'w') as _f:
+        with open('./circ_{}-{}-{}-{}.txt'.format(args.schema,
+                                                  args.depth,
+                                                  args.precision,
+                                                  dstr), 'w') as _f:
             for gate in circ:
                 _f.write("{}\n".format(gate))
     creg = ClassicalRegister(n_qubits)
