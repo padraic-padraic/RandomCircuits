@@ -26,7 +26,7 @@ void circ_to_python(std::vector<gate_ptr>& circ, py::list& return_list, unsigned
     }
 }
 
-py::list random_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style)
+py::list random_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style, int seed)
 {
     py::list gates;
     std::vector<std::vector<cz_t>> cpp_cz_schema;
@@ -35,20 +35,20 @@ py::list random_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::v
         std::vector<cz_t> cz_layer(layer);
         cpp_cz_schema.push_back(cz_layer);
     }
-    std::vector<gate_ptr> circ = google_circuit(n_qubits, n_layers, cpp_cz_schema, old_style);
+    std::vector<gate_ptr> circ = google_circuit(n_qubits, n_layers, cpp_cz_schema, old_style, seed);
     circ_to_python(circ, gates, n_qubits);
     return gates;
 }
 
-py::list random_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style)
+py::list random_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style, int seed)
 {
     py::list gates;
-    std::vector<gate_ptr> circ = infd_google_circuit(n_qubits, n_layers, cz_fraction, old_style);
+    std::vector<gate_ptr> circ = infd_google_circuit(n_qubits, n_layers, cz_fraction, old_style, seed);
     circ_to_python(circ, gates, n_qubits);
     return gates;
 }
 
-py::tuple recompiled_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style)
+py::tuple recompiled_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style, int seed)
 {
     py::list gates, compiled_gates;
     std::vector<std::vector<cz_t>> cpp_cz_schema;
@@ -57,17 +57,17 @@ py::tuple recompiled_circuit(unsigned n_qubits, unsigned n_layers, std::vector<s
         std::vector<cz_t> cz_layer(layer);
         cpp_cz_schema.push_back(cz_layer);
     }
-    std::vector<gate_ptr> circ = google_circuit(n_qubits, n_layers, cpp_cz_schema, old_style);
+    std::vector<gate_ptr> circ = google_circuit(n_qubits, n_layers, cpp_cz_schema, old_style, seed);
     circ_to_python(circ, gates, n_qubits);
     clifford_recompilation(circ);
     circ_to_python(circ, compiled_gates, n_qubits);
     return py::make_tuple(gates, compiled_gates);
 }
 
-py::tuple recompiled_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style)
+py::tuple recompiled_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style, int seed)
 {
     py::list gates, compiled_gates;
-    std::vector<gate_ptr> circ = infd_google_circuit(n_qubits, n_layers, cz_fraction, old_style);
+    std::vector<gate_ptr> circ = infd_google_circuit(n_qubits, n_layers, cz_fraction, old_style, seed);
     circ_to_python(circ, gates, n_qubits);
     clifford_recompilation(circ);
     circ_to_python(circ, compiled_gates, n_qubits);
@@ -77,36 +77,40 @@ py::tuple recompiled_circuit(unsigned n_qubits, unsigned n_layers, double cz_fra
 PYBIND11_MODULE(random_circuits, mod)
 {
     mod.def("generate_circuit", 
-        py::overload_cast<unsigned, unsigned, std::vector<std::vector<cz_t>>&, bool>(&random_circuit),
+        py::overload_cast<unsigned, unsigned, std::vector<std::vector<cz_t>>&, bool, int>(&random_circuit),
         py::arg("n_qubits"),
         py::arg("n_layers"),
         py::arg("cz_schema"),
-        py::arg("old_style")=false
+        py::arg("old_style")=false,
+        py::arg("seed")=-1
         );
 
     mod.def("generate_connected_circuit", 
-        py::overload_cast<unsigned, unsigned, double, bool>(&random_circuit),
+        py::overload_cast<unsigned, unsigned, double, bool, int>(&random_circuit),
         py::arg("n_qubits"),
         py::arg("n_layers"),
         py::arg("cz_fraction"),
-        py::arg("old_style")=false
+        py::arg("old_style")=false,
+        py::arg("seed")=-1
         );
 
 
     mod.def("generate_compiled_circuit",
-        py::overload_cast<unsigned, unsigned, std::vector<std::vector<cz_t>>&, bool>(&recompiled_circuit),
+        py::overload_cast<unsigned, unsigned, std::vector<std::vector<cz_t>>&, bool, int>(&recompiled_circuit),
         py::arg("n_qubits"),
         py::arg("n_layers"),
         py::arg("cz_properties"),
-        py::arg("old_style")=false
+        py::arg("old_style")=false,
+        py::arg("seed")=-1
         );
 
     mod.def("generate_connected_compiled_circuit",
-    py::overload_cast<unsigned, unsigned, double, bool>(&recompiled_circuit),
+    py::overload_cast<unsigned, unsigned, double, bool, int>(&recompiled_circuit),
     py::arg("n_qubits"),
     py::arg("n_layers"),
     py::arg("cz_properties"),
-    py::arg("old_style")=false
+    py::arg("old_style")=false,
+    py::arg("seed")=-1
     );
 
 }

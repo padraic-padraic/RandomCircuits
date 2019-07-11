@@ -387,10 +387,18 @@ void add_single_qubit_gates(unsigned n_qubits, layer_t& last_layer, layer_t& thi
   }
 }
 
-std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style=false)
+std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::vector<std::vector<cz_t>>& cz_schema, bool old_style=false, int seed=-1)
 {
-  unsigned seed = std::time(nullptr);
-  StabilizerSimulator::init_rng(seed, 0);
+
+  if (seed < 0)
+  {
+    unsigned rng_seed = std::time(nullptr);
+    StabilizerSimulator::init_rng(rng_seed, 0);
+  }
+  else
+  {
+    StabilizerSimulator::init_rng(seed, 0);
+  }
   std::vector<gate_ptr> flattened_circuit;
   std::vector<bool> has_a_t(n_qubits, false);
   for(unsigned i=0; i<n_qubits; i++)
@@ -425,10 +433,17 @@ std::vector<gate_ptr> google_circuit(unsigned n_qubits, unsigned n_layers, std::
   return flattened_circuit;
 }
 
-std::vector<gate_ptr> infd_google_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style=false)
+std::vector<gate_ptr> infd_google_circuit(unsigned n_qubits, unsigned n_layers, double cz_fraction, bool old_style=false, int seed=-1)
 {
-  unsigned seed = std::time(nullptr);
-  StabilizerSimulator::init_rng(seed, 0);
+  if (seed < 0)
+  {
+    unsigned rng_seed = std::time(nullptr);
+    StabilizerSimulator::init_rng(rng_seed, 0);
+  }
+  else
+  {
+    StabilizerSimulator::init_rng(seed, 0);
+  }
   std::vector<gate_ptr> flattened_circuit;
   std::vector<bool> has_a_t(n_qubits, false);
   for(unsigned i=0; i<n_qubits; i++)

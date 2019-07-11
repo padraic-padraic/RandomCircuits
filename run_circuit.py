@@ -7,7 +7,7 @@ from circuit_generation.random_circuits import generate_connected_circuit
 
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.compiler import assemble
-from qiskit.providers.aer import QasmSimulator
+from qiskit.providers.aer import AerError, QasmSimulator
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -31,7 +31,7 @@ if __name__ == '__main__':
             False)
     else:
         old_style = dimension == 1
-        with open('CZ_schemata/{}.json'.format(args.schema), 'r') as _f:
+        with open('/home/ucaphdc/RandomCircuits/CZ_schemata/{}.json'.format(args.schema), 'r') as _f:
             schema = json.load(_f)
             layers = []
             for i in range(1, len(schema)+1):
@@ -78,6 +78,7 @@ if __name__ == '__main__':
                 int(q) for q in gate[qblock_start+1:qblock_end].split(',')]
         qcirc.barrier(qreg)
     qcirc.measure(qreg, creg)
+    print('T_count is {}'.format(t_count))
     if args.timeout is not None:
         hours, minutes, seconds = (
                 int(val) for val in args.timeout.strip().split(':')
@@ -105,11 +106,18 @@ if __name__ == '__main__':
             'success': False,
             'reason': 'timeout'
         }
-    except:
-        print("General error.")
+    except AerError as ex:
+        print("Aer Error.")
+        print(ex)
         output = {
             'success': False,
-            'reason': 'Uncertain.'
+            'reason': 'Aer.'
+        }
+    except:
+        print("Unknown error mate")
+        output = {
+            'success': False,
+            'reason': 'Unknown'
         }
     with open(ostr, 'w') as _f:
         json.dump(output, _f, indent=4)

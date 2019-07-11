@@ -10,6 +10,7 @@ jupyterlab = "*"
 networkx = "*"
 pybind11 = "*"
 matplotlib = "*"
+matplotlib2tikz = "*"
 
 [requires]
 python_version = "3.7"
